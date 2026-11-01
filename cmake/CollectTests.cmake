@@ -1,0 +1,10 @@
+get_filename_component(output_dir "${OUTPUT_PATH}" DIRECTORY)
+file(MAKE_DIRECTORY "${output_dir}")
+execute_process(COMMAND "${CMAKE_COMMAND}" -E env MCUTCL_JSON_TEST_OUTPUT=1 "${TEST_BINARY}"
+    OUTPUT_FILE "${OUTPUT_PATH}" ERROR_VARIABLE errors RESULT_VARIABLE result)
+file(READ "${OUTPUT_PATH}" payload)
+string(JSON format ERROR_VARIABLE parse_error GET "${payload}" format)
+if(parse_error OR NOT format STREQUAL "mcutest-results" OR NOT result STREQUAL "0")
+    message(FATAL_ERROR "Test evidence producer failed: ${result}; ${errors}")
+endif()
+message(STATUS "Test evidence: ${OUTPUT_PATH}")

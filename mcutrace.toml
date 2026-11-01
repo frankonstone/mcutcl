@@ -1,0 +1,13 @@
+[project]
+root = "."
+requirements = ["requirements.md"]
+plans = ["plan/implementation-plan.md"]
+sources = ["src/interpreter.cpp", "src/main.cpp"]
+build_files = ["CMakeLists.txt"]
+
+[[artifacts]]
+path = "build/host/artifacts/mcutest.json"
+importer = "mcutest"
+
+[validation]
+fail_at_or_above = "error"
