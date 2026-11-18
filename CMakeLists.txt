@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(mcutcl VERSION 0.2.0 DESCRIPTION "Project-owned Tcl 9 interpreter" LANGUAGES CXX)
+project(mcutcl VERSION 0.4.0 DESCRIPTION "Project-owned Tcl 9 interpreter" LANGUAGES CXX)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 option(MCUTCL_BUILD_TESTS "Build interpreter tests" ON)
@@ -20,7 +20,9 @@ function(mcutcl_options target)
         endif()
     endif()
 endfunction()
-add_library(mcutcl_runtime STATIC src/interpreter.cpp src/list.cpp)
+add_library(mcutcl_runtime STATIC src/interpreter.cpp src/execution.cpp src/list.cpp src/profile.cpp
+    src/collections.cpp src/expression.cpp src/numeric.cpp src/control.cpp)
+target_compile_definitions(mcutcl_runtime PRIVATE MCUTCL_VERSION="${PROJECT_VERSION}")
 add_library(mcutcl::mcutcl ALIAS mcutcl_runtime)
 set_target_properties(mcutcl_runtime PROPERTIES EXPORT_NAME mcutcl)
 target_include_directories(mcutcl_runtime PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -44,6 +46,7 @@ if(MCUTCL_BUILD_CLI)
 endif()
 install(TARGETS mcutcl_runtime EXPORT mcutcl-targets ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY examples/debounce examples/sampled-actuator DESTINATION ${CMAKE_INSTALL_DATADIR}/mcutcl/examples)
 install(EXPORT mcutcl-targets NAMESPACE mcutcl:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/mcutcl)
 configure_package_config_file(cmake/mcutcl-config.cmake.in "${CMAKE_BINARY_DIR}/mcutcl-config.cmake"
     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/mcutcl)
@@ -62,11 +65,33 @@ if(MCUTCL_BUILD_TESTS)
     if(NOT TARGET mcutest::mcutest)
         message(FATAL_ERROR "Provide mcutest or disable MCUTCL_BUILD_TESTS")
     endif()
-    add_executable(mcutcl_tests tests/main.cpp tests/interpreter.cpp tests/lists.cpp)
+    add_executable(mcutcl_tests tests/main.cpp tests/interpreter.cpp tests/lists.cpp tests/embedding.cpp tests/automation.cpp)
+    target_compile_definitions(mcutcl_tests PRIVATE
+        MCUTCL_DEBOUNCE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/examples/debounce/debounce.tcl"
+        MCUTCL_ACTUATOR_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/examples/sampled-actuator/actuator.tcl")
     target_link_libraries(mcutcl_tests PRIVATE mcutcl::mcutcl mcutest::mcutest)
     mcutest_configure_target(mcutcl_tests MAX_TESTS 256 SOURCE_LOCATION ON)
     mcutcl_options(mcutcl_tests)
     add_test(NAME interpreter COMMAND mcutcl_tests)
+    add_executable(mcutcl_debounce examples/debounce/main.cpp)
+    target_link_libraries(mcutcl_debounce PRIVATE mcutcl::mcutcl)
+    mcutcl_options(mcutcl_debounce)
+    add_executable(mcutcl_actuator examples/sampled-actuator/main.cpp)
+    target_link_libraries(mcutcl_actuator PRIVATE mcutcl::mcutcl)
+    mcutcl_options(mcutcl_actuator)
+    add_test(NAME sampled_actuator COMMAND ${CMAKE_COMMAND}
+        "-DRUNNER=$<TARGET_FILE:mcutcl_actuator>"
+        "-DMODEL=${CMAKE_CURRENT_SOURCE_DIR}/examples/sampled-actuator/actuator.tcl"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/actuator-test" -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_actuator.cmake")
+    add_test(NAME model_callbacks COMMAND ${CMAKE_COMMAND}
+        "-DRUNNER=$<TARGET_FILE:mcutcl_debounce>"
+        "-DMODEL=${CMAKE_CURRENT_SOURCE_DIR}/examples/debounce/debounce.tcl"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/debounce-test" -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_debounce.cmake")
+    add_test(NAME installed_consumer COMMAND ${CMAKE_COMMAND}
+        "-DBUILD=${CMAKE_CURRENT_BINARY_DIR}" "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/install-test"
+        "-DTESTS=${CMAKE_CURRENT_SOURCE_DIR}/tests" "-DGENERATOR=${CMAKE_GENERATOR}"
+        "-DCOMPILER=${CMAKE_CXX_COMPILER}" "-DCONFIG=$<CONFIG>" "-DLIBDIR=${CMAKE_INSTALL_LIBDIR}"
+        "-DDATADIR=${CMAKE_INSTALL_DATADIR}" -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_installed.cmake")
     add_custom_target(evidence COMMAND ${CMAKE_COMMAND}
         "-DTEST_BINARY=$<TARGET_FILE:mcutcl_tests>" "-DOUTPUT_PATH=${CMAKE_BINARY_DIR}/artifacts/mcutest.json"
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CollectTests.cmake DEPENDS mcutcl_tests VERBATIM)

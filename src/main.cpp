@@ -1,4 +1,5 @@
 #include <mcutcl/interpreter.hpp>
+#include <mcutcl/profile.hpp>
 #include <mcucli/mcucli.hpp>
 
 #include <fstream>
@@ -9,7 +10,8 @@
 // @req REQ-0015
 int main(int argc, char* argv[]) {
     mcucli::Application app{"mcutcl", "Project-owned Tcl 9 interpreter: initial documented subset"};
-    app.set_version("0.2.0");
+    const auto runtime = mcutcl::runtime_profile();
+    app.set_version(runtime.version);
     const auto evaluate = app.add_command("eval", "Evaluate a source string and print its final result");
     const auto run = app.add_command("run", "Run a UTF-8 Tcl source file");
     const auto profile = app.add_command("profile", "Show compatibility and implementation status");
@@ -32,8 +34,12 @@ int main(int argc, char* argv[]) {
     }
     if (parsed->command() == (*profile)->id()) {
         std::cout << "target: Tcl 9 core semantics\nimplementation: original C++ interpreter; no Tcl runtime dependency\n"
-            "profile: mcutcl.tcl9-bootstrap/0.2.0; partial parsing/substitution/scalar set, basic lists and native commands\n"
-            "pending: numeric escapes, arrays, remaining list operations, expressions, control flow, procedures, namespaces, remaining core commands, REPL\n";
+            "profile: " << runtime.language << "\ncapabilities:";
+        for (const auto feature : runtime.capabilities) { std::cout << ' ' << feature; }
+        std::cout << "\ncommands: set unset list llength lindex lappend lset dict (create/get/set/exists/unset)\n"
+            "          expr if foreach (one variable) while proc (fixed arguments) return (plain) break continue catch error\n"
+            "numbers: 64-bit integer magnitude, binary64, abs min max double wide round floor ceil sqrt exp\n"
+            "pending: arbitrary precision, byte values, full Tcl 9 core, REPL\n";
         return 0;
     }
     if (parsed->command() == (*complete)->id()) {

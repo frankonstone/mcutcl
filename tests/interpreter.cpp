@@ -87,7 +87,7 @@ TEST(profile, unfinished_features_reject_explicitly, "REQ-0020") {
         ASSERT_FALSE(r.has_value()); ASSERT_EQ(r.error().code, ErrorCode::unsupported);
     }
     Interpreter i;
-    const auto r = i.evaluate("expr {1 + 2}");
+    const auto r = i.evaluate("binary format c 1");
     ASSERT_FALSE(r.has_value()); ASSERT_EQ(r.error().code, ErrorCode::unknown_command);
 }
 TEST(native, typed_arguments_results_and_registration_policy, "REQ-0010") {

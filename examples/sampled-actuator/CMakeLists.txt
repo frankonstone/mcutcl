@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.25)
+project(sampled_actuator_example LANGUAGES CXX)
+find_package(mcutcl 0.4 CONFIG REQUIRED)
+add_executable(mcutcl_actuator main.cpp)
+target_link_libraries(mcutcl_actuator PRIVATE mcutcl::mcutcl)

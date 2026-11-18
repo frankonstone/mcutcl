@@ -1,5 +1,6 @@
 #include <mcutcl/list.hpp>
 #include "text.hpp"
+#include "poll.hpp"
 
 namespace mcutcl {
 namespace {
@@ -9,10 +10,14 @@ Error error(ErrorCode code, std::string message, std::size_t offset = 0) {
     return result;
 }
 bool space(char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f'; }
+
 }
 
 // @req REQ-0005 REQ-0008 REQ-0010
-Result make_list(std::span<const std::string> elements, Limits limits) {
+Result make_list(std::span<const std::string> elements, Limits limits, RunControl* run) {
+    if (run) {
+        if (auto ready = run->consume_work(0); !ready) { return std::unexpected(ready.error()); }
+    }
     if (elements.size() > limits.words) { return std::unexpected(error(ErrorCode::limit, "list element limit exceeded")); }
     std::string result;
     const auto append = [&](std::string_view value) {
@@ -23,6 +28,9 @@ Result make_list(std::span<const std::string> elements, Limits limits) {
     bool first = true;
     for (const auto& element : elements) {
         if (element.size() > limits.value_bytes) { return std::unexpected(error(ErrorCode::limit, "list value limit exceeded")); }
+        if (run) {
+            if (auto paid = run->consume_work(element.size()); !paid) { return std::unexpected(paid.error()); }
+        }
         if (!detail::utf8(element)) { return std::unexpected(error(ErrorCode::unsupported, "list values must be valid UTF-8")); }
         if (!first && !append(" ")) { return std::unexpected(error(ErrorCode::limit, "encoded list limit exceeded")); }
         first = false;
@@ -30,7 +38,10 @@ Result make_list(std::span<const std::string> elements, Limits limits) {
             if (!append("{}")) { return std::unexpected(error(ErrorCode::limit, "encoded list limit exceeded")); }
             continue;
         }
-        for (const char c : element) {
+        detail::BlockPoll poll{run};
+        for (std::size_t i = 0; i < element.size(); ++i) {
+            if (poll.cancelled(i)) { return std::unexpected(error(ErrorCode::cancelled, "list encoding cancelled")); }
+            const char c = element[i];
             std::string_view escaped;
             switch (c) {
             case '\a': escaped = "\\a"; break; case '\b': escaped = "\\b"; break;
@@ -53,13 +64,21 @@ Result make_list(std::span<const std::string> elements, Limits limits) {
 }
 
 // @req REQ-0005 REQ-0008
-std::expected<std::vector<std::string>, Error> parse_list(std::string_view text, Limits limits) {
+std::expected<std::vector<std::string>, Error> parse_list(std::string_view text, Limits limits, RunControl* run) {
     if (text.size() > limits.value_bytes) { return std::unexpected(error(ErrorCode::limit, "list value limit exceeded")); }
+    if (run) {
+        if (auto paid = run->consume_work(text.size()); !paid) { return std::unexpected(paid.error()); }
+    }
     if (!detail::utf8(text)) { return std::unexpected(error(ErrorCode::unsupported, "list must be valid UTF-8")); }
     std::vector<std::string> elements;
     std::size_t position{};
+    detail::BlockPoll poll{run};
+    const auto cancelled = [&] { return std::unexpected(error(ErrorCode::cancelled, "list decoding cancelled", position)); };
     while (position < text.size()) {
-        while (position < text.size() && space(text[position])) { ++position; }
+        while (position < text.size() && space(text[position])) {
+            if (poll.cancelled(position)) { return cancelled(); }
+            ++position;
+        }
         if (position == text.size()) { break; }
         if (elements.size() >= limits.words) { return std::unexpected(error(ErrorCode::limit, "list element limit exceeded", position)); }
         std::string value;
@@ -70,6 +89,7 @@ std::expected<std::vector<std::string>, Error> parse_list(std::string_view text,
         std::size_t nesting = 1;
         if (braced && limits.nesting == 0) { return std::unexpected(error(ErrorCode::limit, "list brace nesting limit exceeded", position)); }
         while (position < text.size()) {
+            if (poll.cancelled(position)) { return cancelled(); }
             const char c = text[position++];
             if (!braced && !quoted && space(c)) { break; }
             if (braced) {
@@ -86,7 +106,10 @@ std::expected<std::vector<std::string>, Error> parse_list(std::string_view text,
                 const char escaped = text[position++];
                 if (escaped == '\n') {
                     value += ' ';
-                    while (position < text.size() && (text[position] == ' ' || text[position] == '\t')) { ++position; }
+                    while (position < text.size() && (text[position] == ' ' || text[position] == '\t')) {
+                        if (poll.cancelled(position)) { return cancelled(); }
+                        ++position;
+                    }
                 } else if (escaped == 'x' || escaped == 'u' || escaped == 'U' || (escaped >= '0' && escaped <= '7')) {
                     return std::unexpected(error(ErrorCode::unsupported, "numeric list escapes are not implemented", position));
                 } else {

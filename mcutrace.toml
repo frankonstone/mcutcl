@@ -2,7 +2,8 @@
 root = "."
 requirements = ["requirements.md"]
 plans = ["plan/implementation-plan.md"]
-sources = ["src/interpreter.cpp", "src/main.cpp"]
+sources = ["src/interpreter.cpp", "src/execution.cpp", "src/list.cpp", "src/profile.cpp", "src/main.cpp",
+    "src/collections.cpp", "src/expression.cpp", "src/numeric.cpp", "src/control.cpp"]
 build_files = ["CMakeLists.txt"]
 
 [[artifacts]]

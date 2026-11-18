@@ -2,8 +2,8 @@
 
 A project-owned C++23 interpreter targeting Tcl 9 core semantics, implemented
 incrementally from scratch. It does not embed/link/invoke Tcl for runtime
-execution. The current checkpoint is **mcutcl.tcl9-bootstrap/0.2.0**, a small
-documented subset rather than full Tcl compatibility.
+execution. The current checkpoint is **mcutcl.tcl9-bootstrap/0.4.0** and includes
+the **mcutcl.automation/1** profile for stateful digital and sampled analog models.
 
 ## Current checkpoint
 
@@ -16,9 +16,30 @@ their substitutions execute; earlier completed commands survive later errors.
 Variables/interpreters retain independent state and have explicit source, value,
 word, variable, command and nesting limits.
 
-Pending: numeric/Unicode backslash escapes, `{*}` expansion, arrays, general
-namespace resolution, remaining list/dict operations, expression arithmetic, control flow,
-procedures, Tcl completion/error options, binary-value operations, remaining core
+Version 0.3.0 introduced fixed-argument procedures, local variables and persistent
+`::` scalars, `unset`, plain `return`, `break`, `continue`, `error message` and
+`catch script ?resultVarName?`. C++ hosts can invoke a procedure with argument
+values, cancel a run cooperatively, and share command and byte allowances
+across callbacks. The [model authoring guide](docs/model-authoring.md) lists
+the exact forms, storage limits and installed capabilities.
+
+Version 0.4.0 adds checked integer and double expressions, lazy conditionals,
+bounded loops, list updates and nested dictionaries. After building the host
+preset with tests enabled, run either model in a virtual-time test host.
+
+```sh
+./build/host/mcutcl_debounce examples/debounce/debounce.tcl
+./build/host/mcutcl_actuator examples/sampled-actuator/actuator.tcl
+```
+
+The digital model drives the pin at tick 10 after an input edge at tick 6.
+The half-gain actuator and its 12-bit ADC produce 2048, 3071 and 4095 on
+successive samples. Both examples ship as standalone CMake projects.
+
+Open language work includes numeric/Unicode backslash escapes, `{*}` expansion,
+arrays, general namespace resolution, remaining list/dict operations, arbitrary
+precision integers, additional math functions, default/variadic procedures, full Tcl completion/error
+options, binary-value operations, remaining core
 commands and interactive console. UTF-8 literal values are supported; invalid
 UTF-8 and unfinished forms are rejected. Basic `::set`/root scalar names work,
 but do not establish namespace support. Unknown/unimplemented commands fail.
@@ -29,6 +50,20 @@ internal command substitutions share its command budget. Native callbacks are
 trusted, bounded, non-throwing operations; the interpreter cannot preempt a
 blocking C++ callback. Limits do not provide a hard allocator ceiling, and host
 allocation failure is not currently converted to a recoverable Tcl result.
+
+## Simulation-authoring increment
+
+The 17 November 2026 [requirements](requirements.md#simulation-authoring-and-embedding-increment--2026-11-17)
+and [PLN-0009](plan/implementation-plan.md#pln-0009-reusable-automation-profile-and-supported-host-embedding)
+add a qualified automation profile, public cancellation/completion, structured
+invocation and installed capability negotiation for consumers such as mcuemu.
+The 0.4.0 checkpoint implements the model language and public embedding interfaces.
+mcuemu owns model lifecycle and virtual time. Its binding currently pins 0.2.0.
+The byte-oriented profile is tracked separately in PLN-0017.
+The broader [mcucom architecture](../mcucom/doc/architecture.md) keeps controller
+communication/synchronization in portable firmware services. Network and
+clock-domain scenario commands use host bindings, with no new Tcl language
+construct or target dependency required solely for another fieldbus.
 
 ## Build and use
 
@@ -77,7 +112,8 @@ python3 tests/differential.py --mcutcl build/host/mcutcl \
 ```
 
 This compares success/failure and successful UTF-8 result bytes for the selected
-implemented subset, not full error-message or language compatibility. Python
+forms. Separate vectors check the runtime's integer growth limit against the
+larger exact Tcl result. Python
 and reference Tcl are not product/runtime dependencies. No Tcl implementation
 source is vendored. The semantic reference is the
 [Tcl 9 language manual](https://www.tcl-lang.org/man/tcl9.0/TclCmd/Tcl.html).
@@ -85,7 +121,8 @@ source is vendored. The semantic reference is the
 [Requirements](requirements.md), [plan](plan/implementation-plan.md), and
 `mcutrace.toml` keep incomplete work visible. Source/line test observations are
 not source coverage. Cross-platform, complete core-command inventory, installed
-consumer, cancellation and full Tcl conformance remain verification gates.
+consumer qualification in mcuemu, cancellation in future language operations,
+and full Tcl conformance remain verification gates.
 
 ## Parse-only input inspection (runtime 0.1.1)
 
@@ -111,7 +148,7 @@ qualification. The mcuemu consumer separately verifies its installed component.
 
 ## Initial list/argument profile (0.2.0)
 
-The runtime/language profile is now `mcutcl.tcl9-bootstrap/0.2.0`. The parse-only
+The 0.2.0 release introduced `mcutcl.tcl9-bootstrap/0.2.0`. The parse-only
 inspection API from 0.1.1 remains available unchanged. `list` serializes values;
 `llength` counts parsed elements; initial `lindex list index` accepts one canonical
 signed 64-bit decimal index. Negative/out-of-range indices return an empty value.
