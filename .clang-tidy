@@ -1,0 +1,70 @@
+# Baseline for the MCU C/C++ repositories. Tested with LLVM 21.1.3.
+# Keep the compiler diagnostics selected by each build.
+# FixedAddressDereference flags intentional memory-mapped I/O in mcubsp.
+Checks: >-
+  -*,
+  clang-diagnostic-*,
+  clang-analyzer-core.*,
+  -clang-analyzer-core.FixedAddressDereference,
+  clang-analyzer-cplusplus.*,
+  clang-analyzer-deadcode.DeadStores,
+  clang-analyzer-security.ArrayBound,
+  clang-analyzer-unix.Malloc,
+  clang-analyzer-unix.MismatchedDeallocator,
+  bugprone-assert-side-effect,
+  bugprone-dangling-handle,
+  bugprone-integer-division,
+  bugprone-macro-repeated-side-effects,
+  bugprone-move-forwarding-reference,
+  bugprone-narrowing-conversions,
+  bugprone-return-const-ref-from-parameter,
+  bugprone-sizeof-container,
+  bugprone-suspicious-memset-usage,
+  bugprone-suspicious-stringview-data-usage,
+  bugprone-undefined-memory-manipulation,
+  bugprone-unused-raii,
+  bugprone-use-after-move,
+  bugprone-virtual-near-miss,
+  performance-for-range-copy,
+  performance-unnecessary-copy-initialization,
+  readability-identifier-naming,
+  readability-function-cognitive-complexity,
+  readability-function-size,
+  readability-else-after-return
+
+CheckOptions:
+  readability-identifier-naming.NamespaceCase: lower_case
+  readability-identifier-naming.FunctionCase: lower_case
+  readability-identifier-naming.MethodCase: lower_case
+  readability-identifier-naming.ParameterCase: lower_case
+  readability-identifier-naming.LocalVariableCase: lower_case
+  readability-identifier-naming.MemberCase: lower_case
+  readability-identifier-naming.MemberIgnoredRegexp: '^[a-z][a-z0-9_]*_$'
+  readability-identifier-naming.PrivateMemberCase: lower_case
+  readability-identifier-naming.PrivateMemberSuffix: '_'
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.UnionCase: CamelCase
+  readability-identifier-naming.EnumCase: CamelCase
+  readability-identifier-naming.TypeAliasCase: CamelCase
+  readability-identifier-naming.TypeAliasIgnoredRegexp: '^(value_type|difference_type|size_type|iterator_category|iterator_concept|pointer|reference|const_pointer|const_reference|iterator|const_iterator|type)$'
+  readability-identifier-naming.TypedefCase: CamelCase
+  readability-identifier-naming.ScopedEnumConstantCase: lower_case
+  readability-identifier-naming.ConstexprVariableCase: lower_case
+  readability-identifier-naming.MacroDefinitionCase: UPPER_CASE
+  readability-function-cognitive-complexity.Threshold: '40'
+  readability-function-cognitive-complexity.IgnoreMacros: 'true'
+  readability-function-cognitive-complexity.DescribeBasicIncrements: 'false'
+  readability-function-size.StatementThreshold: '100'
+  readability-else-after-return.WarnOnConditionVariables: 'false'
+  readability-else-after-return.WarnOnUnfixable: 'false'
+
+  # from_chars takes a bounded [first, last) range, not a C string.
+  bugprone-suspicious-stringview-data-usage.AllowedCallees: '^::std::(.*::)?from_chars$'
+
+WarningsAsErrors: ''
+SystemHeaders: false
+# Override with --header-filter to scope diagnostics to one checkout when
+# sibling MCU repositories are pulled in via CMake.
+HeaderFilterRegex: '(^|/)(include|src|compiler|runtime|platform|standard_library|sdk|tools|test|tests|example|examples)/'
+ExcludeHeaderFilterRegex: '(^|/)(third_party|thirdparty|_deps|vendor|external|extern|ext|generated|build|output)(/|$)'
